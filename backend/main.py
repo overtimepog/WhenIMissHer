@@ -1,11 +1,15 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from datetime import datetime, UTC
+from datetime import datetime
 import aiosqlite
 from typing import List, AsyncGenerator
 import os
 from contextlib import asynccontextmanager
+import pytz
+
+# Configure timezone
+eastern = pytz.timezone('America/New_York')
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -61,9 +65,10 @@ async def init_db():
         await db.execute('INSERT OR IGNORE INTO labels (role, label) VALUES (?, ?)', ('you', 'You'))
         await db.execute('INSERT OR IGNORE INTO labels (role, label) VALUES (?, ?)', ('her', 'Her'))
 
-        #set this to new years 2025 
+        # Set this to new years 2025 midnight Eastern Time
+        ny_2025 = eastern.localize(datetime(2025, 1, 1, 0, 0, 0)).isoformat()
         await db.execute('INSERT OR IGNORE INTO entries (content, created_at, author) VALUES (?, ?, ?)', 
-            ('I wish I was kissing you right now', '2025-01-01T00:00:00Z', 'you'))
+            ('I wish I was kissing you right now', ny_2025, 'you'))
         await db.commit()
 
 # Models
@@ -158,7 +163,8 @@ async def change_pin(pin_data: PinChange, db: aiosqlite.Connection = Depends(get
 
 @app.post("/add-entry")
 async def add_entry(entry: JournalEntry, db: aiosqlite.Connection = Depends(get_db)):
-    current_time = datetime.now(UTC).isoformat()
+    # Use current time in Eastern timezone
+    current_time = datetime.now(eastern).isoformat()
     
     await db.execute(
         'INSERT INTO entries (content, created_at, author) VALUES (?, ?, ?)',
