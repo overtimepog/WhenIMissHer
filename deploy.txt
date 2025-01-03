@@ -1,0 +1,76 @@
+# Deployment Instructions
+
+## 1. Backend Deployment (Render)
+
+1. Push your code to GitHub
+2. Go to render.com and create an account
+3. Click "New +" and select "Web Service"
+4. Connect your GitHub repository
+5. Configure the service:
+   - Name: when-i-miss-her-api
+   - Environment: Python 3
+   - Build Command: pip install -r backend/requirements.txt
+   - Start Command: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
+   - Auto-Deploy: Yes
+
+6. Add Environment Variables:
+   - PORT: 8000
+
+7. Click "Create Web Service"
+
+Save the provided URL (e.g., https://when-i-miss-her-api.onrender.com)
+
+## 2. Frontend Deployment (Vercel)
+
+1. Create a .env.production file in frontend directory:
+   ```
+   REACT_APP_API_URL=https://your-render-url.onrender.com
+   ```
+
+2. Go to vercel.com and create an account
+3. Install Vercel CLI:
+   ```bash
+   npm install -g vercel
+   ```
+
+4. In the frontend directory, run:
+   ```bash
+   vercel login
+   vercel
+   ```
+
+5. Configure the deployment:
+   - Build Command: npm run build
+   - Output Directory: build
+   - Development Command: npm start
+   - Root Directory: frontend
+
+6. Add Environment Variables in Vercel Dashboard:
+   - Name: REACT_APP_API_URL
+   - Value: Your Render backend URL
+
+7. Deploy:
+   ```bash
+   vercel --prod
+   ```
+
+## Post-Deployment
+
+1. Test both PINs work on the production site
+2. Verify entries can be created and viewed
+3. Test PIN change functionality
+
+## Security Notes
+
+1. Update CORS in backend/main.py:
+   ```python
+   app.add_middleware(
+       CORSMiddleware,
+       allow_origins=["https://your-vercel-domain.vercel.app"],
+       allow_credentials=True,
+       allow_methods=["*"],
+       allow_headers=["*"],
+   )
+   ```
+
+2. Consider changing default PINs after deployment 

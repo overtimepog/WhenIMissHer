@@ -16,9 +16,10 @@ import {
   DialogActions,
   TextField,
   IconButton,
+  Divider,
 } from '@mui/material';
 import { Settings as SettingsIcon } from '@mui/icons-material';
-import { getEntries, changePin } from '../services/api';
+import { getEntries, changePin, getLabels, changeLabel } from '../services/api';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 
@@ -32,11 +33,24 @@ function ViewerPage() {
   const [confirmPin, setConfirmPin] = useState('');
   const [pinError, setPinError] = useState('');
   const [pinSuccess, setPinSuccess] = useState(false);
+  const [labels, setLabels] = useState({ you: 'You', her: 'Her' });
+  const [newLabel, setNewLabel] = useState('');
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchEntries();
+    fetchLabels();
   }, []);
+
+  const fetchLabels = async () => {
+    try {
+      const data = await getLabels();
+      setLabels(data);
+      setNewLabel(data.her);
+    } catch (err) {
+      console.error('Failed to fetch labels:', err);
+    }
+  };
 
   const fetchEntries = async () => {
     try {
@@ -56,6 +70,7 @@ function ViewerPage() {
     setCurrentPin('');
     setNewPin('');
     setConfirmPin('');
+    setNewLabel(labels.her);
   };
 
   const handleChangePinClose = () => {
@@ -77,6 +92,18 @@ function ViewerPage() {
       }
 
       await changePin(currentPin, newPin);
+
+      // If PIN change successful, try to update label
+      if (newLabel !== labels.her) {
+        try {
+          await changeLabel(currentPin, newLabel);
+          await fetchLabels();
+        } catch (err) {
+          setPinError('PIN changed but failed to update label: ' + err.message);
+          return;
+        }
+      }
+
       setPinSuccess(true);
       setTimeout(() => {
         setChangePinDialog(false);
@@ -107,13 +134,13 @@ function ViewerPage() {
       <Box sx={{ py: 4 }}>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Typography variant="h4" component="h1">
-            Times They Thought About You
+            Times They Thought About {labels.her}
           </Typography>
           <IconButton
             onClick={handleChangePinClick}
             color="primary"
             size="large"
-            title="Change PIN"
+            title="Settings"
           >
             <SettingsIcon />
           </IconButton>
@@ -168,12 +195,12 @@ function ViewerPage() {
         )}
 
         <Dialog open={changePinDialog} onClose={handleChangePinClose}>
-          <DialogTitle>Change Your PIN</DialogTitle>
+          <DialogTitle>Settings</DialogTitle>
           <DialogContent>
             <Box sx={{ pt: 1 }}>
               {pinSuccess ? (
                 <Alert severity="success" sx={{ mb: 2 }}>
-                  PIN changed successfully! Redirecting...
+                  Settings updated successfully! Redirecting...
                 </Alert>
               ) : (
                 <>
@@ -182,6 +209,9 @@ function ViewerPage() {
                       {pinError}
                     </Alert>
                   )}
+                  <Typography variant="subtitle1" gutterBottom>
+                    Change Your PIN
+                  </Typography>
                   <TextField
                     fullWidth
                     type="password"
@@ -209,6 +239,18 @@ function ViewerPage() {
                     margin="normal"
                     inputProps={{ maxLength: 4, pattern: '[0-9]*' }}
                   />
+                  <Divider sx={{ my: 2 }} />
+                  <Typography variant="subtitle1" gutterBottom>
+                    Customize Your Name
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    label="Your Display Name"
+                    value={newLabel}
+                    onChange={(e) => setNewLabel(e.target.value)}
+                    margin="normal"
+                    inputProps={{ maxLength: 20 }}
+                  />
                 </>
               )}
             </Box>
@@ -219,9 +261,9 @@ function ViewerPage() {
               <Button
                 onClick={handleChangePinSubmit}
                 variant="contained"
-                disabled={!currentPin || !newPin || !confirmPin}
+                disabled={!currentPin || !newPin || !confirmPin || !newLabel.trim()}
               >
-                Change PIN
+                Save Changes
               </Button>
             </DialogActions>
           )}

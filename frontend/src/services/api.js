@@ -27,6 +27,24 @@ export const changePin = async (oldPin, newPin) => {
   }
 };
 
+export const getLabels = async () => {
+  try {
+    const response = await api.get('/labels');
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.detail || 'Failed to fetch labels');
+  }
+};
+
+export const changeLabel = async (pin, newLabel) => {
+  try {
+    const response = await api.post('/change-label', { pin, new_label: newLabel });
+    return response.data;
+  } catch (error) {
+    throw new Error(error.response?.data?.detail || 'Failed to change label');
+  }
+};
+
 export const addEntry = async (content) => {
   try {
     const response = await api.post('/add-entry', { content });

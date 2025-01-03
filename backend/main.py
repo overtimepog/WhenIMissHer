@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, UTC
 import sqlite3
 from typing import List
 
@@ -43,10 +43,24 @@ def init_db():
         pin TEXT NOT NULL
     )''')
     
+    # Add labels table
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS labels (
+        role TEXT PRIMARY KEY,
+        label TEXT NOT NULL
+    )''')
+    
     # Insert default pins if not exist
     cursor.execute('INSERT OR IGNORE INTO pins (role, pin) VALUES (?, ?)', ('you', '6278'))
     cursor.execute('INSERT OR IGNORE INTO pins (role, pin) VALUES (?, ?)', ('her', '1234'))
-    
+
+    # Insert default labels if not exist
+    cursor.execute('INSERT OR IGNORE INTO labels (role, label) VALUES (?, ?)', ('you', 'You'))
+    cursor.execute('INSERT OR IGNORE INTO labels (role, label) VALUES (?, ?)', ('her', 'Her'))
+
+    #add an entry for new years, make the "you" dynamic, and make sure if the entry already exists, it doesn't add it again, make sure it has the text "I wish I was kissing you right now"
+    cursor.execute('INSERT OR IGNORE INTO entries (content, created_at, author) VALUES (?, ?, ?)', 
+        ('I wish I was kissing you right now', datetime.now(UTC).isoformat(), 'you'))
     db.commit()
     db.close()
 
@@ -60,6 +74,10 @@ class PinChange(BaseModel):
     old_pin: str
     new_pin: str
 
+class LabelChange(BaseModel):
+    pin: str
+    new_label: str
+
 class JournalEntry(BaseModel):
     content: str
     author: str = "you"
@@ -70,10 +88,44 @@ class JournalEntryResponse(BaseModel):
     created_at: str
     author: str
 
+class LabelsResponse(BaseModel):
+    you: str
+    her: str
+
 def get_pin_data(db: sqlite3.Connection):
     cursor = db.cursor()
     cursor.execute('SELECT role, pin FROM pins')
     return {pin: role for role, pin in cursor.fetchall()}
+
+@app.get("/labels")
+async def get_labels(db: sqlite3.Connection = Depends(get_db)):
+    cursor = db.cursor()
+    cursor.execute('SELECT role, label FROM labels')
+    labels = dict(cursor.fetchall())
+    return LabelsResponse(you=labels['you'], her=labels['her'])
+
+@app.post("/change-label")
+async def change_label(label_data: LabelChange, db: sqlite3.Connection = Depends(get_db)):
+    cursor = db.cursor()
+    pin_dict = get_pin_data(db)
+    
+    if label_data.pin not in pin_dict:
+        raise HTTPException(status_code=401, detail="Invalid PIN")
+    
+    role = pin_dict[label_data.pin]
+    
+    # Validate label
+    if not label_data.new_label or len(label_data.new_label) > 20:
+        raise HTTPException(status_code=400, detail="Label must be between 1 and 20 characters")
+    
+    # Update label
+    cursor.execute(
+        'UPDATE labels SET label = ? WHERE role = ?',
+        (label_data.new_label, role)
+    )
+    db.commit()
+    
+    return {"message": "Label updated successfully"}
 
 @app.post("/verify-pin")
 async def verify_pin(pin_data: PinInput, db: sqlite3.Connection = Depends(get_db)):
@@ -113,7 +165,7 @@ async def change_pin(pin_data: PinChange, db: sqlite3.Connection = Depends(get_d
 @app.post("/add-entry")
 async def add_entry(entry: JournalEntry, db: sqlite3.Connection = Depends(get_db)):
     cursor = db.cursor()
-    current_time = datetime.utcnow().isoformat()
+    current_time = datetime.now(UTC).isoformat()
     cursor.execute(
         'INSERT INTO entries (content, created_at, author) VALUES (?, ?, ?)',
         (entry.content, current_time, entry.author)
